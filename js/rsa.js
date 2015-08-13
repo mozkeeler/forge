@@ -217,7 +217,6 @@ var rsaPublicKeyValidator = {
 };
 
 // validator for an SubjectPublicKeyInfo structure
-// Note: Currently only works with an RSA public key
 var publicKeyValidator = forge.pki.rsa.publicKeyValidator = {
   name: 'SubjectPublicKeyInfo',
   tagClass: asn1.Class.UNIVERSAL,
@@ -235,6 +234,9 @@ var publicKeyValidator = forge.pki.rsa.publicKeyValidator = {
       type: asn1.Type.OID,
       constructed: false,
       capture: 'publicKeyOid'
+    }, {
+      name: 'AlgorithmIdentifier.parameters',
+      capture: 'publicKeyParams',
     }]
   }, {
     // subjectPublicKey
@@ -242,15 +244,7 @@ var publicKeyValidator = forge.pki.rsa.publicKeyValidator = {
     tagClass: asn1.Class.UNIVERSAL,
     type: asn1.Type.BITSTRING,
     constructed: false,
-    value: [{
-      // RSAPublicKey
-      name: 'SubjectPublicKeyInfo.subjectPublicKey.RSAPublicKey',
-      tagClass: asn1.Class.UNIVERSAL,
-      type: asn1.Type.SEQUENCE,
-      constructed: true,
-      optional: true,
-      captureAsn1: 'rsaPublicKey'
-    }]
+    captureAsn1: 'subjectPublicKeyBits'
   }]
 };
 
@@ -1257,34 +1251,56 @@ pki.publicKeyFromAsn1 = function(obj) {
   // get SubjectPublicKeyInfo
   var capture = {};
   var errors = [];
+  var oid = null;
+  var subjectPublicKeyBits = null;
   if(asn1.validate(obj, publicKeyValidator, capture, errors)) {
     // get oid
-    var oid = asn1.derToOid(capture.publicKeyOid);
-    if(oid !== pki.oids.rsaEncryption) {
-      var error = new Error('Cannot read public key. Unknown OID.');
-      error.oid = oid;
+    oid = asn1.derToOid(capture.publicKeyOid);
+    subjectPublicKeyBits = capture.subjectPublicKeyBits;
+  }
+
+  if(oid == pki.oids.rsaEncryption) {
+    // get RSA params
+    errors = [];
+    if(!asn1.validate(subjectPublicKeyBits.value[0], rsaPublicKeyValidator,
+                      capture, errors)) {
+      var error = new Error('Cannot read public key. ' +
+        'ASN.1 object does not contain an RSAPublicKey.');
+      error.errors = errors;
       throw error;
     }
-    obj = capture.rsaPublicKey;
+    // FIXME: inefficient, get a BigInteger that uses byte strings
+    var n = forge.util.createBuffer(capture.publicKeyModulus).toHex();
+    var e = forge.util.createBuffer(capture.publicKeyExponent).toHex();
+
+    // set public key
+    return pki.setRsaPublicKey(
+      new BigInteger(n, 16),
+      new BigInteger(e, 16));
   }
 
-  // get RSA params
-  errors = [];
-  if(!asn1.validate(obj, rsaPublicKeyValidator, capture, errors)) {
-    var error = new Error('Cannot read public key. ' +
-      'ASN.1 object does not contain an RSAPublicKey.');
-    error.errors = errors;
-    throw error;
+  if(oid == pki.oids.ecPublicKey) {
+    // subjectPublicKeyBits.value should be a BITSTRING with 0 unused bits,
+    // followed by a single byte of value 0x04 to indicate the uncompressed
+    // form, followed by two integers of equal length (not DER-encoded).
+    if(subjectPublicKeyBits.value.length < 2 ||
+       subjectPublicKeyBits.value.length % 2 != 0 ||
+       subjectPublicKeyBits.value.charCodeAt(0) != 0 ||
+       subjectPublicKeyBits.value.charCodeAt(1) != 4) {
+      var error = new Error('Cannot read public key. ' +
+        'ASN.1 object does not contain an ECPublicKey.');
+      throw error;
+    }
+    var ecPoint = subjectPublicKeyBits.value.substring(2);
+    var x = forge.util.createBuffer(ecPoint.substring(0, ecPoint.length / 2)).toHex();
+    var y = forge.util.createBuffer(ecPoint.substring(ecPoint.length / 2)).toHex();
+    var curve = asn1.derToOid(capture.publicKeyParams);
+    return { x: new BigInteger(x, 16), y: new BigInteger(y, 16), curve: curve };
   }
 
-  // FIXME: inefficient, get a BigInteger that uses byte strings
-  var n = forge.util.createBuffer(capture.publicKeyModulus).toHex();
-  var e = forge.util.createBuffer(capture.publicKeyExponent).toHex();
-
-  // set public key
-  return pki.setRsaPublicKey(
-    new BigInteger(n, 16),
-    new BigInteger(e, 16));
+  var error = new Error('Cannot read public key. Unknown OID.');
+  error.oid = oid;
+  throw error;
 };
 
 /**

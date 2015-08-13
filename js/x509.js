@@ -1271,10 +1271,12 @@ pki.certificateFromAsn1 = function(obj, computeHash) {
   }
 
   // get oid
+  /*
   var oid = asn1.derToOid(capture.publicKeyOid);
   if(oid !== pki.oids['rsaEncryption']) {
     throw new Error('Cannot read public key. OID is not RSA.');
   }
+  */
 
   // create certificate
   var cert = pki.createCertificate();
