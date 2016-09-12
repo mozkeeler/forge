@@ -15,6 +15,20 @@ var oids = forge.pki.oids = forge.oids = forge.oids || {};
 // algorithm OIDs
 oids['1.2.840.113549.1.1.1'] = 'rsaEncryption';
 oids['rsaEncryption'] = '1.2.840.113549.1.1.1';
+oids['1.2.840.10045.2.1'] = 'ecPublicKey';
+oids['ecPublicKey'] = '1.2.840.10045.2.1';
+// EC curve OIDs
+oids['1.2.840.10045.3.1.7'] = 'secp256r1';
+oids['secp256r1'] = '1.2.840.10045.3.1.7';
+oids['1.3.132.0.34'] = 'secp384r1';
+oids['secp384r1'] = '1.3.132.0.34';
+oids['1.3.132.0.35'] = 'secp521r1';
+oids['secp521r1'] = '1.3.132.0.35';
+// EC signature OIDs
+oids['1.2.840.10045.4.3.2'] = 'ecdsaWithSHA256';
+oids['ecdsaWithSHA256'] = '1.2.840.10045.4.3.2';
+oids['1.2.840.10045.4.3.3'] = 'ecdsaWithSHA384';
+oids['ecdsaWithSHA384'] = '1.2.840.10045.4.3.3';
 // Note: md2 & md4 not implemented
 //oids['1.2.840.113549.1.1.2'] = 'md2WithRSAEncryption';
 //oids['md2WithRSAEncryption'] = '1.2.840.113549.1.1.2';
